@@ -36,23 +36,26 @@ public class PlaybackScrobbler(IUserDataManager userDataManager, OAuthStore stor
         switch (e.SaveReason)
         {
             case UserDataSaveReason.TogglePlayed when e.UserData.Played:
-                if (Configuration.ReportManualStatusChangeToBangumi)
-                    ReportPlaybackStatus(e.Item, e.UserId, true).ConfigureAwait(false);
+                _ = ReportPlaybackStatus(e.Item, e.UserId, true, true).ContinueWith(
+                    t => log.Error("scrobble error: {Error}", t.Exception),
+                    TaskContinuationOptions.OnlyOnFaulted);
                 break;
 
             case UserDataSaveReason.TogglePlayed when !e.UserData.Played:
-                if (Configuration.ReportManualStatusChangeToBangumi)
-                    ReportPlaybackStatus(e.Item, e.UserId, false).ConfigureAwait(false);
+                _ = ReportPlaybackStatus(e.Item, e.UserId, false, true).ContinueWith(
+                    t => log.Error("scrobble error: {Error}", t.Exception),
+                    TaskContinuationOptions.OnlyOnFaulted);
                 break;
 
             case UserDataSaveReason.PlaybackFinished when e.UserData.Played:
-                if (Configuration.ReportPlaybackStatusToBangumi)
-                    ReportPlaybackStatus(e.Item, e.UserId, true).ConfigureAwait(false);
+                _ = ReportPlaybackStatus(e.Item, e.UserId, true, false).ContinueWith(
+                    t => log.Error("scrobble error: {Error}", t.Exception),
+                    TaskContinuationOptions.OnlyOnFaulted);
                 break;
         }
     }
 
-    private async Task ReportPlaybackStatus(BaseItem item, Guid userId, bool played)
+    private async Task ReportPlaybackStatus(BaseItem item, Guid userId, bool played, bool isManualChange)
     {
         Episode? episode = null;
         var localConfiguration = await LocalConfiguration.ForPath(item.Path);
@@ -94,6 +97,19 @@ public class PlaybackScrobbler(IUserDataManager userDataManager, OAuthStore stor
             return;
         }
 
+        // Check per-user setting with global fallback
+        if (isManualChange && !GetEffectiveSetting(user, o => o.ReportManualStatusChangeToBangumi, Configuration.ReportManualStatusChangeToBangumi))
+        {
+            log.Info("manual status change report is disabled for user #{User}, ignored", userId);
+            return;
+        }
+
+        if (!isManualChange && !GetEffectiveSetting(user, o => o.ReportPlaybackStatusToBangumi, Configuration.ReportPlaybackStatusToBangumi))
+        {
+            log.Info("playback status report is disabled for user #{User}, ignored", userId);
+            return;
+        }
+
         var reportPrivate = false;
         try
         {
@@ -115,12 +131,12 @@ public class PlaybackScrobbler(IUserDataManager userDataManager, OAuthStore stor
                 }
 
                 var subject = await api.GetSubject(subjectId, CancellationToken.None);
-                if (subject?.IsNSFW == true && Configuration.SkipNSFWPlaybackReport)
+                if (subject?.IsNSFW == true && GetEffectiveSetting(user, o => o.SkipNSFWPlaybackReport, Configuration.SkipNSFWPlaybackReport))
                 {
                     log.Info("item #{Name} marked as NSFW, skipped", item.Name);
                     return;
                 }
-                reportPrivate = subject?.IsNSFW == true && Configuration.PrivateNSFWPlaybackReport;
+                reportPrivate = subject?.IsNSFW == true && GetEffectiveSetting(user, o => o.PrivateNSFWPlaybackReport, Configuration.PrivateNSFWPlaybackReport);
 
                 var episodeStatus = await api.GetEpisodeStatus(user.AccessToken, episodeId, CancellationToken.None);
                 if (episodeStatus?.Type == EpisodeCollectionType.Watched)
@@ -178,4 +194,16 @@ public class PlaybackScrobbler(IUserDataManager userDataManager, OAuthStore stor
     }
 
     internal static bool IsErrorFromUncollectedSubject(Exception e) => e.Message.Contains("need to add subject to your collection");
+
+    private static bool GetEffectiveSetting(OAuthUser? user, Func<UserOptions, bool?> optionSelector, bool globalSetting)
+    {
+        if (user?.Options != null)
+        {
+            var userValue = optionSelector(user.Options);
+            if (userValue.HasValue)
+                return userValue.Value;
+        }
+
+        return globalSetting;
+    }
 }

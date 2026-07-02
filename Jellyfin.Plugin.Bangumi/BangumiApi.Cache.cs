@@ -51,7 +51,7 @@ public partial class BangumiApi
 
     private async Task<string> SendWithOutCache(HttpRequestMessage request, string? accessToken, CancellationToken token)
     {
-        using var httpClient = GetHttpClient();
+        var httpClient = GetHttpClient();
         if (!string.IsNullOrEmpty(accessToken))
             request.Headers.Authorization = AuthenticationHeaderValue.Parse("Bearer " + accessToken);
         using var response = await httpClient.SendAsync(request, token);

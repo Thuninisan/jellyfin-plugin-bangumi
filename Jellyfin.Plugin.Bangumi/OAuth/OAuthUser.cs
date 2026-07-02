@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json.Serialization;
+using Jellyfin.Plugin.Bangumi.Model;
 
 namespace Jellyfin.Plugin.Bangumi.OAuth;
 
@@ -28,7 +29,7 @@ public partial class OAuthUser
     [JsonPropertyName("expires_in")]
     public int ExpireIn
     {
-        set => ExpireTime = DateTime.Now.AddSeconds(value);
+        set => ExpireTime = DateTime.UtcNow.AddSeconds(value);
     }
 
     [JsonPropertyName("expires")]
@@ -36,4 +37,7 @@ public partial class OAuthUser
     {
         set => ExpireTime = DateTime.UnixEpoch.AddSeconds(value);
     }
+
+    [JsonPropertyName("options")]
+    public UserOptions? Options { get; set; }
 }

@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using Jellyfin.Plugin.Bangumi.Model;
 using MediaBrowser.Common.Configuration;
 
 namespace Jellyfin.Plugin.Bangumi.OAuth;
@@ -10,6 +11,8 @@ namespace Jellyfin.Plugin.Bangumi.OAuth;
 public class OAuthStore
 {
     private readonly IApplicationPaths _applicationPaths;
+
+    private readonly object _lock = new();
 
     private Dictionary<string, OAuthUser> _users = new();
 
@@ -23,23 +26,34 @@ public class OAuthStore
 
     public void Load()
     {
-        if (File.Exists(StorePath))
-            _users = JsonSerializer.Deserialize<Dictionary<string, OAuthUser>>(
+        lock (_lock)
+        {
+            if (!File.Exists(StorePath))
+                return;
+            var result = JsonSerializer.Deserialize<Dictionary<string, OAuthUser>>(
                 File.ReadAllText(StorePath),
                 Constants.JsonSerializerOptions
-            )!;
+            );
+            _users = result ?? new Dictionary<string, OAuthUser>();
+        }
     }
 
     public void Save()
     {
-        if (!Directory.Exists(_applicationPaths.PluginConfigurationsPath))
-            Directory.CreateDirectory(_applicationPaths.PluginConfigurationsPath);
-        File.WriteAllText(StorePath, JsonSerializer.Serialize(_users));
+        lock (_lock)
+        {
+            if (!Directory.Exists(_applicationPaths.PluginConfigurationsPath))
+                Directory.CreateDirectory(_applicationPaths.PluginConfigurationsPath);
+            File.WriteAllText(StorePath, JsonSerializer.Serialize(_users));
+        }
     }
 
     public bool Contains(string userId)
     {
-        return _users.ContainsKey(userId);
+        lock (_lock)
+        {
+            return _users.ContainsKey(userId);
+        }
     }
 
     public bool Contains(Guid guid)
@@ -49,8 +63,11 @@ public class OAuthStore
 
     public OAuthUser? Get(string userId)
     {
-        var user = _users.GetValueOrDefault(userId);
-        return user?.Expired == true ? null : user;
+        lock (_lock)
+        {
+            var user = _users.GetValueOrDefault(userId);
+            return user?.Expired == true ? null : user;
+        }
     }
 
     public OAuthUser? Get(Guid guid)
@@ -60,19 +77,25 @@ public class OAuthStore
 
     public OAuthUser? GetAvailable()
     {
-        try
+        lock (_lock)
         {
-            return _users.First(user => !user.Value.Expired).Value;
-        }
-        catch (Exception)
-        {
-            return null;
+            try
+            {
+                return _users.First(user => !user.Value.Expired).Value;
+            }
+            catch (InvalidOperationException)
+            {
+                return null;
+            }
         }
     }
 
     public void Set(string userId, OAuthUser oAuthResult)
     {
-        _users[userId] = oAuthResult;
+        lock (_lock)
+        {
+            _users[userId] = oAuthResult;
+        }
     }
 
     public void Set(Guid guid, OAuthUser oAuthResult)
@@ -83,7 +106,10 @@ public class OAuthStore
 
     public void Delete(string userId)
     {
-        _users.Remove(userId);
+        lock (_lock)
+        {
+            _users.Remove(userId);
+        }
     }
 
     public void Delete(Guid guid)
@@ -93,6 +119,27 @@ public class OAuthStore
 
     protected internal Dictionary<string, OAuthUser> GetUsers()
     {
-        return _users;
+        lock (_lock)
+        {
+            return _users;
+        }
+    }
+
+    public UserOptions? GetOptions(Guid guid)
+    {
+        return Get(guid)?.Options;
+    }
+
+    public void SetOptions(Guid guid, UserOptions options)
+    {
+        Load();
+        lock (_lock)
+        {
+            var user = _users.GetValueOrDefault(guid.ToString("N"));
+            if (user == null)
+                return;
+            user.Options = options;
+        }
+        Save();
     }
 }

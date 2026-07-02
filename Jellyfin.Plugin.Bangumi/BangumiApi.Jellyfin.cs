@@ -67,9 +67,10 @@ public partial class BangumiApi(ArchiveData archive, OAuthStore store, Logger<Ba
 
     public async Task<MemoryStream> FetchStream(string url, IProgress<double> progress, CancellationToken token)
     {
-        using var httpClient = GetHttpClient();
-        httpClient.Timeout = TimeSpan.FromMinutes(5);
-        using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, token);
+        var httpClient = GetHttpClient();
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token, token);
+        using var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, linkedCts.Token);
         response.EnsureSuccessStatusCode();
         await using var httpStream = await response.Content.ReadAsStreamAsync(token);
         var totalSize = response.Content.Headers.ContentLength;
@@ -96,24 +97,52 @@ public partial class BangumiApi(ArchiveData archive, OAuthStore store, Logger<Ba
     }
 
 
+    private static HttpClient? _sharedHttpClient;
+    private static readonly object _httpClientLock = new();
+
     public HttpClient GetHttpClient(bool allowAutoRedirect = true)
     {
-#pragma warning disable CA2000, CA5399
-        var handler = new HttpClientHandler
+        if (!allowAutoRedirect)
         {
-            AllowAutoRedirect = allowAutoRedirect,
-            UseProxy = !string.IsNullOrEmpty(_plugin.Configuration.ProxyServerUrl),
-            Proxy = !string.IsNullOrEmpty(_plugin.Configuration.ProxyServerUrl) ? new WebProxy(_plugin.Configuration.ProxyServerUrl) : HttpClient.DefaultProxy,
-        };
-        if (_plugin.Configuration.IgnoreSslErrors)
-            handler.ServerCertificateCustomValidationCallback = static (_, _, _, _) => true;
-        var httpClient = new HttpClient(handler, true);
+            // One-off client for FollowRedirection (rarely called)
+#pragma warning disable CA2000, CA5399
+            var handler = new HttpClientHandler { AllowAutoRedirect = false };
+            if (_plugin.Configuration.IgnoreSslErrors)
+                handler.ServerCertificateCustomValidationCallback = static (_, _, _, _) => true;
+            var client = new HttpClient(handler, true);
 #pragma warning restore CA2000, CA5399
-        httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Jellyfin.Plugin.Bangumi", _plugin.Version.ToString()));
-        httpClient.DefaultRequestHeaders.UserAgent.Add(
-            new ProductInfoHeaderValue("(https://github.com/kookxiang/jellyfin-plugin-bangumi)"));
-        httpClient.Timeout = TimeSpan.FromMilliseconds(_plugin.Configuration.RequestTimeout);
-        return httpClient;
+            client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Jellyfin.Plugin.Bangumi", _plugin.Version.ToString()));
+            client.DefaultRequestHeaders.UserAgent.Add(
+                new ProductInfoHeaderValue("(https://github.com/kookxiang/jellyfin-plugin-bangumi)"));
+            client.Timeout = TimeSpan.FromMilliseconds(_plugin.Configuration.RequestTimeout);
+            return client;
+        }
+
+        if (_sharedHttpClient != null)
+            return _sharedHttpClient;
+
+        lock (_httpClientLock)
+        {
+            if (_sharedHttpClient != null)
+                return _sharedHttpClient;
+
+#pragma warning disable CA2000, CA5399
+            var handler = new HttpClientHandler
+            {
+                AllowAutoRedirect = true,
+                UseProxy = !string.IsNullOrEmpty(_plugin.Configuration.ProxyServerUrl),
+                Proxy = !string.IsNullOrEmpty(_plugin.Configuration.ProxyServerUrl) ? new WebProxy(_plugin.Configuration.ProxyServerUrl) : HttpClient.DefaultProxy,
+            };
+            if (_plugin.Configuration.IgnoreSslErrors)
+                handler.ServerCertificateCustomValidationCallback = static (_, _, _, _) => true;
+            _sharedHttpClient = new HttpClient(handler, true);
+#pragma warning restore CA2000, CA5399
+            _sharedHttpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Jellyfin.Plugin.Bangumi", _plugin.Version.ToString()));
+            _sharedHttpClient.DefaultRequestHeaders.UserAgent.Add(
+                new ProductInfoHeaderValue("(https://github.com/kookxiang/jellyfin-plugin-bangumi)"));
+            _sharedHttpClient.Timeout = TimeSpan.FromMilliseconds(_plugin.Configuration.RequestTimeout);
+            return _sharedHttpClient;
+        }
     }
 
 }

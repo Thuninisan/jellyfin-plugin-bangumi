@@ -481,7 +481,7 @@ public partial class BangumiApi
 
     public async Task<User?> GetAccountInfo(string accessToken, CancellationToken token)
     {
-        return await Get<User>($"{BaseUrl}/v0/me", accessToken, token);
+        return await Get<User>($"{BaseUrl}/v0/me", accessToken, token, false);
     }
 
     public async Task<DataList<EpisodeCollectionInfo>?> GetEpisodeCollectionInfo(string accessToken, int subjectId, int episodeType, CancellationToken token)
@@ -496,7 +496,7 @@ public partial class BangumiApi
 
     public async Task<EpisodeCollectionInfo?> GetEpisodeStatus(string accessToken, int episodeId, CancellationToken token)
     {
-        return await Get<EpisodeCollectionInfo>($"{BaseUrl}/v0/users/-/collections/-/episodes/{episodeId}", accessToken, token);
+        return await Get<EpisodeCollectionInfo>($"{BaseUrl}/v0/users/-/collections/-/episodes/{episodeId}", accessToken, token, false);
     }
 
     public async Task UpdateEpisodeStatus(string accessToken, int episodeId, EpisodeCollectionType status, CancellationToken token)

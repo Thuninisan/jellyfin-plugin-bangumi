@@ -42,6 +42,42 @@
                                         <span>取消授权</span>
                                     </button>
                                 </div>
+                                <div id="bangumi-user-options-container" style="display: none">
+                                    <h3 class="bangumi-settings-subheading">个人同步设置</h3>
+                                    <div class="fieldDescription">以下设置仅对当前已授权的 Bangumi 账号生效。选择「使用全局设置」时将遵循下方全局设置。</div>
+                                    <div class="selectContainer">
+                                        <label class="selectLabel" for="UserReportPlaybackStatusToBangumi">同步播放进度</label>
+                                        <select class="emby-select-withcolor emby-select" id="UserReportPlaybackStatusToBangumi" is="emby-select" data-config-ignore="true">
+                                            <option value="">使用全局设置</option>
+                                            <option value="true">启用</option>
+                                            <option value="false">禁用</option>
+                                        </select>
+                                    </div>
+                                    <div class="selectContainer">
+                                        <label class="selectLabel" for="UserReportManualStatusChangeToBangumi">同步手动状态变更</label>
+                                        <select class="emby-select-withcolor emby-select" id="UserReportManualStatusChangeToBangumi" is="emby-select" data-config-ignore="true">
+                                            <option value="">使用全局设置</option>
+                                            <option value="true">启用</option>
+                                            <option value="false">禁用</option>
+                                        </select>
+                                    </div>
+                                    <div class="selectContainer">
+                                        <label class="selectLabel" for="UserSkipNSFWPlaybackReport">NSFW 条目上报</label>
+                                        <select class="emby-select-withcolor emby-select" id="UserSkipNSFWPlaybackReport" is="emby-select" data-config-ignore="true">
+                                            <option value="">使用全局设置</option>
+                                            <option value="true">禁用上报</option>
+                                            <option value="false">允许上报</option>
+                                        </select>
+                                    </div>
+                                    <div class="selectContainer">
+                                        <label class="selectLabel" for="UserPrivateNSFWPlaybackReport">NSFW 条目可见性</label>
+                                        <select class="emby-select-withcolor emby-select" id="UserPrivateNSFWPlaybackReport" is="emby-select" data-config-ignore="true">
+                                            <option value="">使用全局设置</option>
+                                            <option value="true">仅自己可见</option>
+                                            <option value="false">公开</option>
+                                        </select>
+                                    </div>
+                                </div>
                                 <div class="selectContainer">
                                     <div class="checkboxContainer checkboxContainer-withDescription">
                                         <label class="emby-checkbox-label">

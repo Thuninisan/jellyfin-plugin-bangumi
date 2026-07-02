@@ -97,6 +97,7 @@
                 container.querySelector('.bangumi-user-info .user-avatar').innerHTML = '<span class="material-icons person"></span>';
                 container.querySelector('.bangumi-user-info .user-name').textContent = '未登录';
                 container.querySelector('.bangumi-oauth-status').innerHTML = '';
+                container.querySelector('#bangumi-user-options-container').style.display = 'none';
                 return;
             }
             container.querySelector('#bangumi-oauth-btn').textContent = '重新授权';
@@ -108,6 +109,36 @@
             container.querySelector('.bangumi-user-info .user-name').textContent = data.nickname;
             container.querySelector('.bangumi-user-info .profile-link').href = data.url;
             container.querySelector('.bangumi-oauth-status').innerHTML = '<p><span class="material-icons schedule"></span> 授权时间: ' + new Date(data.effective).toLocaleString() + '</p><p><span class="material-icons more_time"></span> 过期时间: ' + new Date(data.expire).toLocaleString() + '</p>';
+            container.querySelector('#bangumi-user-options-container').style.display = '';
+            loadUserOptions(data.options);
+        });
+    }
+
+    function loadUserOptions(options) {
+        var defaultVal = '';
+        container.querySelector('#UserReportPlaybackStatusToBangumi').value = options && options.reportPlaybackStatusToBangumi != null ? String(options.reportPlaybackStatusToBangumi) : defaultVal;
+        container.querySelector('#UserReportManualStatusChangeToBangumi').value = options && options.reportManualStatusChangeToBangumi != null ? String(options.reportManualStatusChangeToBangumi) : defaultVal;
+        container.querySelector('#UserSkipNSFWPlaybackReport').value = options && options.skipNSFWPlaybackReport != null ? String(options.skipNSFWPlaybackReport) : defaultVal;
+        container.querySelector('#UserPrivateNSFWPlaybackReport').value = options && options.privateNSFWPlaybackReport != null ? String(options.privateNSFWPlaybackReport) : defaultVal;
+    }
+
+    function saveUserOptions() {
+        var options = {};
+        var reportPlayback = container.querySelector('#UserReportPlaybackStatusToBangumi').value;
+        var reportManual = container.querySelector('#UserReportManualStatusChangeToBangumi').value;
+        var skipNSFW = container.querySelector('#UserSkipNSFWPlaybackReport').value;
+        var privateNSFW = container.querySelector('#UserPrivateNSFWPlaybackReport').value;
+
+        if (reportPlayback !== '') options.reportPlaybackStatusToBangumi = reportPlayback === 'true';
+        if (reportManual !== '') options.reportManualStatusChangeToBangumi = reportManual === 'true';
+        if (skipNSFW !== '') options.skipNSFWPlaybackReport = skipNSFW === 'true';
+        if (privateNSFW !== '') options.privateNSFWPlaybackReport = privateNSFW === 'true';
+
+        return ApiClient.fetch({
+            url: '/Plugins/Bangumi/UserOptions',
+            type: 'PUT',
+            data: JSON.stringify(options),
+            contentType: 'application/json'
         });
     }
 
@@ -236,6 +267,13 @@
                 container.querySelector('#bangumi-oauth-btn').style.display = '';
                 container.querySelector('#bangumi-oauth-refresh').style.display = 'none';
             }));
+    });
+
+    // Per-user options auto-save on change
+    ['UserReportPlaybackStatusToBangumi', 'UserReportManualStatusChangeToBangumi', 'UserSkipNSFWPlaybackReport', 'UserPrivateNSFWPlaybackReport'].forEach(function (id) {
+        container.querySelector('#' + id).addEventListener('change', function () {
+            saveUserOptions();
+        });
     });
 
     container.querySelector('#delete-archive-data').addEventListener('click', function (e) {

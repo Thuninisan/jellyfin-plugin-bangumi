@@ -23,7 +23,7 @@ public partial class OAuthUser
     public string? ProfileUrl { get; set; }
 
     [JsonIgnore]
-    public bool Expired => ExpireTime < DateTime.Now;
+    public bool Expired => ExpireTime < DateTime.UtcNow;
 
     public async Task GetProfile(BangumiApi api, CancellationToken cancellationToken = default)
     {
@@ -80,6 +80,6 @@ public partial class OAuthUser
         AccessToken = newUser.AccessToken;
         RefreshToken = newUser.RefreshToken;
         ExpireTime = newUser.ExpireTime;
-        EffectiveTime = DateTime.Now;
+        EffectiveTime = DateTime.UtcNow;
     }
 }
