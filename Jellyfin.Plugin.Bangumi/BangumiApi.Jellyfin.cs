@@ -100,17 +100,23 @@ public partial class BangumiApi(ArchiveData archive, OAuthStore store, Logger<Ba
     private static HttpClient? _sharedHttpClient;
     private static readonly object _httpClientLock = new();
 
+    /// <summary>
+    /// 获取 HttpClient 实例。默认返回共享单例（allowAutoRedirect=true），调用方<b>不应</b> Dispose 该实例。
+    /// allowAutoRedirect=false 时创建全新实例，调用方<b>必须</b>使用 using 或手动 Dispose。
+    /// </summary>
     public HttpClient GetHttpClient(bool allowAutoRedirect = true)
     {
         if (!allowAutoRedirect)
         {
             // One-off client for FollowRedirection (rarely called)
-#pragma warning disable CA2000, CA5399
+            // CA5359: certificate validation is only disabled when the user enables IgnoreSslErrors
+            // CA5400: check certificate revocation list is not enabled by design
+#pragma warning disable CA2000, CA5399, CA5359, CA5400
             var handler = new HttpClientHandler { AllowAutoRedirect = false };
             if (_plugin.Configuration.IgnoreSslErrors)
                 handler.ServerCertificateCustomValidationCallback = static (_, _, _, _) => true;
             var client = new HttpClient(handler, true);
-#pragma warning restore CA2000, CA5399
+#pragma warning restore CA2000, CA5399, CA5359, CA5400
             client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Jellyfin.Plugin.Bangumi", _plugin.Version.ToString()));
             client.DefaultRequestHeaders.UserAgent.Add(
                 new ProductInfoHeaderValue("(https://github.com/kookxiang/jellyfin-plugin-bangumi)"));
@@ -126,17 +132,21 @@ public partial class BangumiApi(ArchiveData archive, OAuthStore store, Logger<Ba
             if (_sharedHttpClient != null)
                 return _sharedHttpClient;
 
-#pragma warning disable CA2000, CA5399
-            var handler = new HttpClientHandler
+            // CA5359: certificate validation is only disabled when the user enables IgnoreSslErrors
+            // CA5400: check certificate revocation list is not enabled by design
+#pragma warning disable CA2000, CA5399, CA5359, CA5400
+            var handler = new SocketsHttpHandler
             {
                 AllowAutoRedirect = true,
                 UseProxy = !string.IsNullOrEmpty(_plugin.Configuration.ProxyServerUrl),
-                Proxy = !string.IsNullOrEmpty(_plugin.Configuration.ProxyServerUrl) ? new WebProxy(_plugin.Configuration.ProxyServerUrl) : HttpClient.DefaultProxy,
+                Proxy = !string.IsNullOrEmpty(_plugin.Configuration.ProxyServerUrl) ? new WebProxy(_plugin.Configuration.ProxyServerUrl) : null,
+                PooledConnectionLifetime = TimeSpan.FromMinutes(30),
+                PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5)
             };
             if (_plugin.Configuration.IgnoreSslErrors)
-                handler.ServerCertificateCustomValidationCallback = static (_, _, _, _) => true;
+                handler.SslOptions.RemoteCertificateValidationCallback = static (_, _, _, _) => true;
             _sharedHttpClient = new HttpClient(handler, true);
-#pragma warning restore CA2000, CA5399
+#pragma warning restore CA2000, CA5399, CA5359, CA5400
             _sharedHttpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("Jellyfin.Plugin.Bangumi", _plugin.Version.ToString()));
             _sharedHttpClient.DefaultRequestHeaders.UserAgent.Add(
                 new ProductInfoHeaderValue("(https://github.com/kookxiang/jellyfin-plugin-bangumi)"));

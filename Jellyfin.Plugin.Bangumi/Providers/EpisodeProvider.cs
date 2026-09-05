@@ -141,7 +141,7 @@ public class EpisodeProvider(BangumiApi api, Logger<EpisodeProvider> log, ILibra
 
     public async Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
     {
-        using var httpClient = api.GetHttpClient();
+        var httpClient = api.GetHttpClient();
         return await httpClient.GetAsync(url, cancellationToken);
     }
 }

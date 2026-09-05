@@ -74,7 +74,7 @@ public class MusicSongProvider(BangumiApi api, ILibraryManager libraryManager, L
 
     public async Task<HttpResponseMessage> GetImageResponse(string url, CancellationToken cancellationToken)
     {
-        using var httpClient = api.GetHttpClient();
+        var httpClient = api.GetHttpClient();
         return await httpClient.GetAsync(url, cancellationToken);
     }
 

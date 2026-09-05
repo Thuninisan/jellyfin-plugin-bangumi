@@ -44,7 +44,9 @@ public class OAuthStore
         {
             if (!Directory.Exists(_applicationPaths.PluginConfigurationsPath))
                 Directory.CreateDirectory(_applicationPaths.PluginConfigurationsPath);
-            File.WriteAllText(StorePath, JsonSerializer.Serialize(_users));
+            var tempPath = StorePath + ".tmp";
+            File.WriteAllText(tempPath, JsonSerializer.Serialize(_users));
+            File.Move(tempPath, StorePath, overwrite: true);
         }
     }
 
@@ -132,14 +134,14 @@ public class OAuthStore
 
     public void SetOptions(Guid guid, UserOptions options)
     {
-        Load();
         lock (_lock)
         {
+            Load();
             var user = _users.GetValueOrDefault(guid.ToString("N"));
             if (user == null)
                 return;
             user.Options = options;
+            Save();
         }
-        Save();
     }
 }

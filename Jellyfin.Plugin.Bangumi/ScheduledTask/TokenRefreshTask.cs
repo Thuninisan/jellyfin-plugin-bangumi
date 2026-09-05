@@ -50,7 +50,7 @@ public class TokenRefreshTask(BangumiApi api, OAuthStore store, Logger<TokenRefr
 #if EMBY
         var httpClient = api.GetHttpClient();
 #else
-        using var httpClient = api.GetHttpClient();
+        var httpClient = api.GetHttpClient();
 #endif
 
         foreach (var (guid, user) in users)
@@ -58,11 +58,14 @@ public class TokenRefreshTask(BangumiApi api, OAuthStore store, Logger<TokenRefr
             cancellationToken.ThrowIfCancellationRequested();
             progress.Report(current / total);
             current++;
-            if (user.Expired || string.IsNullOrEmpty(user.RefreshToken))
+            if (string.IsNullOrEmpty(user.RefreshToken))
             {
-                logger.Info("用户 #{user.UserId} 未授权或授权已过期");
+                logger.Info("用户 #{user.UserId} 未设置 refresh token，跳过");
                 continue;
             }
+
+            if (user.Expired)
+                logger.Info("用户 #{user.UserId} 授权已过期，尝试使用 refresh token 刷新");
 
             try
             {

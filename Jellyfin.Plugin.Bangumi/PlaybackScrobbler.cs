@@ -38,19 +38,25 @@ public class PlaybackScrobbler(IUserDataManager userDataManager, OAuthStore stor
             case UserDataSaveReason.TogglePlayed when e.UserData.Played:
                 _ = ReportPlaybackStatus(e.Item, e.UserId, true, true).ContinueWith(
                     t => log.Error("scrobble error: {Error}", t.Exception),
-                    TaskContinuationOptions.OnlyOnFaulted);
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default);
                 break;
 
             case UserDataSaveReason.TogglePlayed when !e.UserData.Played:
                 _ = ReportPlaybackStatus(e.Item, e.UserId, false, true).ContinueWith(
                     t => log.Error("scrobble error: {Error}", t.Exception),
-                    TaskContinuationOptions.OnlyOnFaulted);
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default);
                 break;
 
             case UserDataSaveReason.PlaybackFinished when e.UserData.Played:
                 _ = ReportPlaybackStatus(e.Item, e.UserId, true, false).ContinueWith(
                     t => log.Error("scrobble error: {Error}", t.Exception),
-                    TaskContinuationOptions.OnlyOnFaulted);
+                    CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted,
+                    TaskScheduler.Default);
                 break;
         }
     }
@@ -123,11 +129,18 @@ public class PlaybackScrobbler(IUserDataManager userDataManager, OAuthStore stor
             }
             else
             {
-                if (subjectId == 0)
+                // an episode in a season folder may belong to a different bangumi subject than the folder itself
+                // (e.g. split cour seasons), trust the episode's own subject id
+                episode ??= await api.GetEpisode(episodeId, CancellationToken.None);
+                if (episode is { ParentId: > 0 } && (subjectId == 0 || episode.ParentId != subjectId))
                 {
-                    episode ??= await api.GetEpisode(episodeId, CancellationToken.None);
-                    if (episode != null)
-                        subjectId = episode.ParentId;
+                    if (subjectId != 0)
+                        log.Info("item {Name} (#{Id}) belongs to subject #{Subject} instead of parent subject #{Parent}, using episode subject",
+                            item.Name,
+                            item.Id,
+                            episode.ParentId,
+                            subjectId);
+                    subjectId = episode.ParentId;
                 }
 
                 var subject = await api.GetSubject(subjectId, CancellationToken.None);
